@@ -88,7 +88,7 @@ int32_t gimbal_angle_ctrl(uint8_t *buff, uint16_t len)
         }
         else
         {
-            gimbal_set_yaw_speed(p_gimbal, p_cmd->yaw / 10.0f);
+            gimbal_set_yaw_delta(p_gimbal, p_cmd->yaw / 10.0f);
         }
 
         offline_event_time_update(OFFLINE_CONTROL_CMD);

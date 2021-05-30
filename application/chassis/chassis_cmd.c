@@ -22,6 +22,15 @@
 #include "referee_system.h"
 #include "offline_service.h"
 
+static float autoandre, autoandrex, autoandrey, autooldandrew, autoandreax, autoandreay;  //To be used on the "twisting" movement
+
+extern struct pid pid_follow;
+extern float follow_relative_angle;
+extern float andreperiod;  // period in seconds
+extern float andreplifier;
+float autoandrew= 0.0f;
+
+
 uint8_t chassis_sdk_state = CHASSIS_SDK_OFF;
 uint8_t chassis_heart_state = CHASSIS_HEART_OFF;
 
@@ -77,7 +86,7 @@ int32_t chassis_speed_ctrl(uint8_t *buff, uint16_t len)
   * @retval int32_t
   */
 int32_t chassis_spd_acc_ctrl(uint8_t *buff, uint16_t len)
-{
+{	
     if (get_chassis_sdk_mode() != CHASSIS_SDK_ON)
     {
         return -1;
@@ -87,9 +96,28 @@ int32_t chassis_spd_acc_ctrl(uint8_t *buff, uint16_t len)
     {
         chassis_t p_chassis = get_chassis();
         struct cmd_chassis_spd_acc *p_acc = (struct cmd_chassis_spd_acc *)buff;
-        chassis_set_offset(p_chassis, p_acc->rotate_x_offset, p_acc->rotate_x_offset);
-        chassis_set_acc(p_chassis, p_acc->ax, p_acc->ay, p_acc->wz / 10.0f);
-        chassis_set_speed(p_chassis, p_acc->vx, p_acc->vy, p_acc->vw / 10.0f);
+        			
+			// 39.5f + 30.0f * sin(osKernelSysTick()/ (160.0f * andreperiod));
+				autoandre = 39.5f + 30.0f * sin(osKernelSysTick()/ (160.0f * andreperiod));
+				autoandrex = (p_acc->vx * cos(follow_relative_angle * 0.0174533f)) + p_acc->vy * sin(-follow_relative_angle * 0.0174533f);
+				autoandrey = (p_acc->vx * sin(follow_relative_angle * 0.0174533f)) + p_acc->vy * cos(-follow_relative_angle * 0.0174533f);
+					
+				autooldandrew = autoandrew;
+				autoandrew = -pid_calculate(&pid_follow, (follow_relative_angle * andreplifier / 1500), (autoandre * andreplifier / 1500));
+				autoandrew = 0.3f * autoandrew + 0.7f * autooldandrew;
+					
+				autoandreax = (p_acc->ax * cos(follow_relative_angle * 0.0174533f)) + p_acc->ay * sin(-follow_relative_angle * 0.0174533f);
+				autoandreay = (p_acc->ax * sin(follow_relative_angle * 0.0174533f)) + p_acc->ay * cos(-follow_relative_angle * 0.0174533f);
+						
+				chassis_set_offset(p_chassis, p_acc->rotate_x_offset, p_acc->rotate_x_offset);
+				chassis_set_acc(p_chassis, autoandreax, autoandreay, 0);  
+				chassis_set_speed(p_chassis, autoandrex, autoandrey, autoandrew); 
+				andreplifier++;
+				if (andreplifier >= 1500)
+					{
+						andreplifier = 1500;
+					}
+
 
         offline_event_time_update(OFFLINE_CONTROL_CMD);
     }

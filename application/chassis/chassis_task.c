@@ -45,8 +45,13 @@ struct ahrs_sensor chassis_gyro;
 static float vx, vy, wz;
 
 /* fllow control */
+static float remote, andrex, andrey, oldandrew, andreax, andreay;  //To be used on the "twisting" movement
+
 struct pid pid_follow = {0};
-float follow_relative_angle;
+float follow_relative_angle = 0.0f;
+float andreperiod = 1.5f;  // period in seconds
+float andreplifier = 0.0f;
+float andrew = 0.0f;
 
 void chassis_task(void const *argument)
 {
@@ -82,12 +87,39 @@ void chassis_task(void const *argument)
 
         if (rc_device_get_state(&chassis_rc, RC_S2_UP) == E_OK)
         {
-            vx = (float)p_rc_info->ch2 / 660 * MAX_CHASSIS_VX_SPEED;
+				  	vx = (float)p_rc_info->ch2 / 660 * MAX_CHASSIS_VX_SPEED;
             vy = -(float)p_rc_info->ch1 / 660 * MAX_CHASSIS_VY_SPEED;
-            wz = -pid_calculate(&pid_follow, follow_relative_angle, 0);
-            chassis_set_offset(&chassis, ROTATE_X_OFFSET, ROTATE_Y_OFFSET);
+            wz = -(float)p_rc_info->ch3 / 660 * MAX_CHASSIS_VW_SPEED;
+            chassis_set_offset(&chassis, 0, 0);
             chassis_set_acc(&chassis, 0, 0, 0);
-            chassis_set_speed(&chassis, vx, vy, wz);
+      //      chassis_set_speed(&chassis, vx, vy, wz);
+					
+					remote = 39.5f + 30.0f * sin(osKernelSysTick()/ (160.0f * andreperiod)); 
+					andrex = (vx * cos(follow_relative_angle * 0.0174533f)) + vy * sin(-follow_relative_angle * 0.0174533f);
+					andrey = (vx * sin(follow_relative_angle * 0.0174533f)) + vy * cos(-follow_relative_angle * 0.0174533f);
+					
+					oldandrew = andrew;
+					andrew = -pid_calculate(&pid_follow, (follow_relative_angle * andreplifier / 1500), (remote * andreplifier / 1500));
+					andrew = 0.3f * andrew + 0.7f * oldandrew;
+					
+			//		andreax = (pacc->ax * cos(follow_relative_angle * 0.0174533f)) + pacc->ay * sin(-follow_relative_angle * 0.0174533f);
+			//		andreay = (pacc->ax * sin(follow_relative_angle * 0.0174533f)) + pacc->ay * cos(-follow_relative_angle * 0.0174533f);
+						
+			//		chassis_set_offset(pchassis, pacc->rotate_x_offset, pacc->rotate_x_offset);
+			//		chassis_set_acc(&chassis, andreax, andreay, 0);  
+					chassis_set_speed(&chassis, andrex, andrey, andrew); 
+					andreplifier++;
+					if (andreplifier >= 1500)
+					{
+						andreplifier = 1500;
+					}
+
+          //  vx = (float)p_rc_info->ch2 / 660 * MAX_CHASSIS_VX_SPEED;
+          //  vy = -(float)p_rc_info->ch1 / 660 * MAX_CHASSIS_VY_SPEED;
+          //  wz = -pid_calculate(&pid_follow, follow_relative_angle, 0);
+          //  chassis_set_offset(&chassis, ROTATE_X_OFFSET, ROTATE_Y_OFFSET);
+          //  chassis_set_acc(&chassis, 0, 0, 0);
+          //  chassis_set_speed(&chassis, vx, vy, wz);
         }
 
         if (rc_device_get_state(&chassis_rc, RC_S2_MID) == E_OK)
@@ -104,12 +136,14 @@ void chassis_task(void const *argument)
         {
             chassis_set_speed(&chassis, 0, 0, 0);
             chassis_set_acc(&chassis, 0, 0, 0);
+					  andreplifier = 0;
         }
 
         if (rc_device_get_state(&chassis_rc, RC_S2_MID2UP) == E_OK)
         {
             chassis_set_speed(&chassis, 0, 0, 0);
             chassis_set_acc(&chassis, 0, 0, 0);
+					  andreplifier = 0;
         }
 
         if (rc_device_get_state(&chassis_rc, RC_S2_DOWN) == E_OK)
@@ -201,7 +235,7 @@ int32_t follow_angle_info_rcv(uint8_t *buff, uint16_t len)
     return 0;
 }
 
-void set_follow_relative(float val)
+ void set_follow_relative(float val)
 {
     follow_relative_angle = val;
 }

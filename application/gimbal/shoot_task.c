@@ -98,7 +98,7 @@ int32_t shoot_firction_toggle(shoot_t p_shoot)
     }
     else
     {
-        shoot_set_fric_speed(p_shoot, 1250, 1250);
+        shoot_set_fric_speed(p_shoot, 1380, 1380);
     }
     toggle = ~toggle;
     return 0;
